@@ -241,7 +241,7 @@ class SlurmDeployment(BaseDeployment):
                 ["madengine", "--version"],
                 capture_output=True,
                 text=True,
-                timeout=5,
+                timeout=60,
                 check=False
             )
             if result.returncode == 0:
@@ -669,6 +669,7 @@ class SlurmDeployment(BaseDeployment):
             "partition": self.partition,
             "nodes": self.nodes,
             "gpus_per_node": resolved_gpus_per_node,  # Use resolved GPU count
+            "skip_gpus_directive": self.slurm_config.get("skip_gpus_directive", False),
             "time_limit": self.time_limit,
             "output_dir": str(self.output_dir),
             "master_port": master_port,

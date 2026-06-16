@@ -765,13 +765,13 @@ class RunOrchestrator:
 
         host_os = self.context.ctx.get("host_os", "")
         if "HOST_UBUNTU" in host_os:
-            print(self.console.sh("apt show rocm-libs -a", canFail=True))
+            print(self.console.sh("timeout 15 apt show rocm-libs -a", canFail=True))
         elif "HOST_CENTOS" in host_os:
-            print(self.console.sh("yum info rocm-libs", canFail=True))
+            print(self.console.sh("timeout 15 yum info rocm-libs", canFail=True))
         elif "HOST_SLES" in host_os:
-            print(self.console.sh("zypper info rocm-libs", canFail=True))
+            print(self.console.sh("timeout 15 zypper info rocm-libs", canFail=True))
         elif "HOST_AZURE" in host_os:
-            print(self.console.sh("tdnf info rocm-libs", canFail=True))
+            print(self.console.sh("timeout 15 tdnf info rocm-libs", canFail=True))
         else:
             self.rich_console.print("[yellow]Warning: Unable to detect host OS[/yellow]")
 
