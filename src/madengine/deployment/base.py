@@ -566,7 +566,16 @@ class BaseDeployment(ABC):
     def _ensure_perf_csv_exists(self) -> None:
         """Ensure perf.csv exists with standard header (for appending aggregated rows)."""
         perf_csv_path = Path("perf.csv")
-        if perf_csv_path.exists():
+        # Treat an empty / whitespace-only perf.csv (e.g. left by an aborted run)
+        # as missing: pandas read_csv raises "No columns to parse from file" on a
+        # 0/1-byte file, which would abort multi-node result collection.
+        try:
+            has_content = perf_csv_path.exists() and bool(
+                perf_csv_path.read_text(encoding="utf-8").strip()
+            )
+        except Exception:
+            has_content = perf_csv_path.exists()
+        if has_content:
             return
         standard_header = (
             "model,n_gpus,nnodes,gpus_per_node,training_precision,pipeline,args,tags,"

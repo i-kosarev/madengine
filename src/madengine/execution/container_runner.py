@@ -1400,6 +1400,18 @@ class ContainerRunner:
                             
                             # Check if this is a worker node (not collecting metrics)
                             is_worker_node = os.environ.get("MAD_COLLECT_METRICS", "true").lower() == "false"
+                            # Multi-node: some launchers (e.g. Primus print_rank_last) emit the
+                            # throughput line only on the global last rank, which can live on a
+                            # different node than the rank-0 collector. The login-node
+                            # collect_results aggregates the populated per-node CSV, so a
+                            # collector node with no local perf must not hard-fail here.
+                            try:
+                                is_multinode_run = int(os.environ.get("NNODES", "1")) > 1
+                            except ValueError:
+                                is_multinode_run = False
+                            tolerate_missing_perf = is_multinode_run and bool(
+                                self.additional_context.get("skip_perf_collection", False)
+                            )
 
                             if has_errors:
                                 run_results["status"] = "FAILURE"
@@ -1416,6 +1428,14 @@ class ContainerRunner:
                                 run_results["status"] = "SUCCESS"
                                 self.rich_console.print(
                                     f"[green]Status: SUCCESS (worker node, no errors detected)[/green]"
+                                )
+                            elif tolerate_missing_perf:
+                                # Multi-node collector without a local throughput line: the
+                                # metric is on the last rank's node and is aggregated by the
+                                # login-node collect_results. Do not fail the run here.
+                                run_results["status"] = "SUCCESS"
+                                self.rich_console.print(
+                                    f"[green]Status: SUCCESS (multi-node, perf aggregated on login node)[/green]"
                                 )
                             else:
                                 run_results["status"] = "FAILURE"

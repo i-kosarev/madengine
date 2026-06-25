@@ -1273,15 +1273,41 @@ export MASTER_PORT={master_port}
         # Multiple results path: resolve CSV from job_dir/node_*, then cwd/run_directory
         mult_res = model_info_for_entry.get("multiple_results")
         if mult_res:
+            def _csv_has_perf_data(p: Path) -> bool:
+                # True if the multiple_results CSV has at least one data row with a
+                # non-empty performance value. Launchers like Primus emit throughput
+                # only on the global last rank (print_rank_last), so non-last-rank
+                # nodes write header-only CSVs that must be skipped when resolving.
+                import csv as _csvmod
+                try:
+                    with open(p, "r", encoding="utf-8", errors="ignore") as _f:
+                        for _row in _csvmod.DictReader(_f):
+                            _row = {k.strip(): v for k, v in _row.items() if k}
+                            if (_row.get("performance") or "").strip():
+                                return True
+                except Exception:
+                    return False
+                return False
+
             resolved_csv: Optional[Path] = None
+            fallback_csv: Optional[Path] = None
+            # Prefer the job-level CSV, then any node CSV that actually contains
+            # performance data; fall back to the first existing CSV otherwise.
             if (job_dir / mult_res).is_file():
-                resolved_csv = job_dir / mult_res
-            else:
+                fallback_csv = job_dir / mult_res
+                if _csv_has_perf_data(job_dir / mult_res):
+                    resolved_csv = job_dir / mult_res
+            if not resolved_csv:
                 for i in range(self.nodes):
                     candidate = job_dir / f"node_{i}" / mult_res
                     if candidate.is_file():
-                        resolved_csv = candidate
-                        break
+                        if fallback_csv is None:
+                            fallback_csv = candidate
+                        if _csv_has_perf_data(candidate):
+                            resolved_csv = candidate
+                            break
+            if not resolved_csv:
+                resolved_csv = fallback_csv
             if not resolved_csv and Path(mult_res).is_file():
                 resolved_csv = Path(mult_res)
             if not resolved_csv and Path("run_directory", mult_res).is_file():
